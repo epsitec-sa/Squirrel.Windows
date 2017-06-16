@@ -91,6 +91,7 @@ namespace Squirrel.Update
                 string icon = default(string);
                 string shortcutArgs = default(string);
                 bool shouldWait = false;
+                bool shouldWaitChild = false;
                 bool noMsi = (Environment.OSVersion.Platform != PlatformID.Win32NT);        // NB: WiX doesn't work under Mono / Wine
 
                 opts = new OptionSet() {
@@ -124,7 +125,8 @@ namespace Squirrel.Update
                     { "a=|process-start-args=", "Arguments that will be used when starting executable", v => processStartArgs = v, true},
                     { "l=|shortcut-locations=", "Comma-separated string of shortcut locations, e.g. 'Desktop,StartMenu'", v => shortcutArgs = v},
                     { "no-msi", "Don't generate an MSI package", v => noMsi = true},
-                    { "no-window", "Hide the window when starting child process", v => hideChildWindow = true}
+                    { "no-window", "Hide the window when starting child process", v => hideChildWindow = true},
+                    { "wait-child", "Wait for the started child process to exit before quit", v => shouldWaitChild = true}
                 };
 
                 opts.Parse(args);
@@ -171,7 +173,7 @@ namespace Squirrel.Update
                     Deshortcut(target, shortcutArgs);
                     break;
                 case UpdateAction.ProcessStart:
-                    ProcessStart(processStart, processStartArgs, shouldWait, hideChildWindow);
+                    ProcessStart(processStart, processStartArgs, shouldWait, shouldWaitChild, hideChildWindow);
                     break;
 #endif
                 case UpdateAction.Releasify:
@@ -493,7 +495,7 @@ namespace Squirrel.Update
             }
         }
 
-        public void ProcessStart(string exeName, string arguments, bool shouldWait, bool hideChildWindow)
+        public void ProcessStart(string exeName, string arguments, bool shouldWait, bool shouldWaitChild, bool hideChildWindow)
         {
             if (String.IsNullOrWhiteSpace(exeName)) {
                 ShowHelp();
@@ -553,7 +555,12 @@ namespace Squirrel.Update
                     startInfo.RedirectStandardError = true;
                 }
     
-                Process.Start(startInfo);
+                var proc = Process.Start(startInfo);
+
+                if (shouldWaitChild)
+                {
+                    proc.WaitForExit ();
+                }
             } catch (Exception ex) {
                 this.Log().ErrorException("Failed to start process", ex);
             }
